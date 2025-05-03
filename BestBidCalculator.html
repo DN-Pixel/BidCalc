@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Optimal Bid Calculator</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      transition: background-color 0.3s, color 0.3s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .container {
+      max-width: 500px;
+      width: 100%;
+      padding: 20px;
+      border-radius: 15px;
+      background-color: #1c1c1c;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    input, button {
+      padding: 10px;
+      margin: 10px 5px;
+      border: none;
+      border-radius: 6px;
+      background-color: #1e1e1e;
+      color: #eee;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    button:hover {
+      background-color: #333;
+    }
+    .active {
+      font-weight: bold;
+      border: 2px solid #4caf50;
+    }
+    .tooltip {
+      position: relative;
+      cursor: help;
+      display: inline-block;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 280px;
+      background-color: #333;
+      color: #fff;
+      text-align: left;
+      padding: 8px;
+      border-radius: 6px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    .details {
+      margin-top: 10px;
+      font-size: 0.95em;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 10px;
+      background-color: #1c1c1c;
+    }
+    .subtext {
+      font-size: 0.9em;
+      margin-top: 5px;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 style="text-align: center; font-size: 2em; margin-bottom: 20px;">
+      💰 Optimal Rat Bid 🐀
+    </h1>
+    <input type="number" id="price" placeholder="Enter item AH price (gold)" />
+    <div>
+      <button id="btn8" onclick="selectPlayers(8)">8 Players</button>
+      <button id="btn16" onclick="selectPlayers(16)">16 Players</button>
+    </div>
+    <button onclick="calculate()">Calculate</button>
+    <button onclick="copyResult()">Copy</button>
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    let selectedPlayers = 8;
+
+    function selectPlayers(n) {
+      selectedPlayers = n;
+      document.getElementById("btn8").classList.remove("active");
+      document.getElementById("btn16").classList.remove("active");
+      if (n === 8) document.getElementById("btn8").classList.add("active");
+      else document.getElementById("btn16").classList.add("active");
+    }
+
+    function calculate() {
+      const price = parseFloat(document.getElementById("price").value);
+      const N = selectedPlayers;
+      const taxe_AH = 0.95;
+      const seuilTaxe = 100000;
+      const resultDiv = document.getElementById("result");
+
+      if (isNaN(price) || price <= 0) {
+        resultDiv.textContent = "Please enter a valid price.";
+        resultDiv.classList.remove("show");
+        return;
+      }
+
+      const B_critique = (taxe_AH * price * (N - 1) - 5000) / (N - 1 + 0.95);
+      const B_dissuade = B_critique / 1.1;
+      const taxed = B_dissuade > seuilTaxe;
+
+      let B_final, label, share;
+
+      if (taxed) {
+        B_final = B_dissuade;
+        label = "With 5% tax";
+        share = (100000 + 0.95 * (B_dissuade - 100000)) / (N - 1);
+      } else {
+        const B_simple = (taxe_AH * price * (N - 1)) / (1.1 * N);
+        B_final = B_simple;
+        label = "No tax";
+        share = B_simple / (N - 1);
+      }
+
+      const nextBid = Math.ceil(B_final * 1.1);
+      const gainNext = taxe_AH * price - nextBid;
+      const shareNext = nextBid > seuilTaxe
+        ? (100000 + 0.95 * (nextBid - 100000)) / (N - 1)
+        : nextBid / (N - 1);
+      const profitMe = taxe_AH * price - B_final;
+
+      resultDiv.innerHTML = `
+        🟢 Optimal bid: <br><strong>${Math.ceil(B_final).toLocaleString()} gold</strong>
+        <div class="subtext tooltip">
+          (${label}) - Each loser receives ~${Math.floor(share).toLocaleString()} gold and you win ~${Math.floor(profitMe).toLocaleString()} gold
+          <span class="tooltiptext">
+            Any gold above 100,000 is taxed 5% before being split among losers.
+          </span>
+        </div>
+        <details class="details">
+          <summary>See what happens if someone outbids you</summary>
+          <div class="subtext">
+            🧠 Next bidder would pay: ${nextBid.toLocaleString()} gold<br>
+            📉 He would earn: ${(taxe_AH * price).toLocaleString(undefined, {maximumFractionDigits: 2})} - ${nextBid.toLocaleString()} = ${Math.floor(gainNext).toLocaleString()} gold<br>
+            ⚖️ Losers would get: ~${Math.floor(shareNext).toLocaleString()} gold each
+          </div>
+        </details>
+      `;
+      resultDiv.classList.add("show");
+    }
+
+    function copyResult() {
+      const resultDiv = document.getElementById("result");
+      const strongEl = resultDiv.querySelector("strong");
+      if (strongEl) {
+        const cleanValue = strongEl.textContent.trim();
+        navigator.clipboard.writeText(cleanValue).then(() => {
+          alert("Copied: " + cleanValue);
+        });
+      } else {
+        alert("Nothing to copy.");
+      }
+    }
+
+    selectPlayers(8);
+  </script>
+</body>
+</html>
